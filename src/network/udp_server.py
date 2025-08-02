@@ -2,20 +2,22 @@
 import asyncio
 import socket
 from custom_logging.logger import log_message
-from protocol.profile import parse_profile 
-from config.settings import UDP_PORT
 from network.udp_client import send_message
+from protocol.profile import parse_profile  # For parsing PROFILE messages
+from protocol.ping import send_ping
+from config.settings import UDP_PORT
 
 async def receive_message():
     """Listen for incoming messages on the UDP socket."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(('0.0.0.0', UDP_PORT))
+    sock.bind(('0.0.0.0', UDP_PORT))  # Listen on all available interfaces
     
     while True:
         data, addr = sock.recvfrom(1024)
         message = data.decode()
         log_message(f"Received message from {addr}: {message}")
         
+        # Handle different message types
         if "PING" in message:
             # Respond with PROFILE when receiving a PING message
             await send_profile(addr[0])  # Send to the same address that sent the PING
@@ -34,6 +36,6 @@ async def send_profile(peer_ip: str):
     """
     await send_message(message, peer_ip)
 
-
 async def start_receiving():
+    """Start receiving messages and processing them."""
     await receive_message()
