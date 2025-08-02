@@ -1,3 +1,7 @@
 # config/settings.py
-UDP_PORT = 50999  # LSNP port
-VERBOSE_MODE = True  # Set to False for non-verbose mode
+# config/settings.py
+
+SEND_PORT = 50999   # Port for sending messages
+RECEIVE_PORT = 51000  # Port for receiving messages
+
+VERBOSE_MODE = True# Set to False for non-verbose mode

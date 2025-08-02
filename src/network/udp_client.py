@@ -1,10 +1,9 @@
-# network/udp_client.py
 import asyncio
 import socket
-from custom_logging.logger import log_message  # Make sure custom_logging is imported correctly
-from config.settings import UDP_PORT
+from custom_logging.logger import log_message
+from config.settings import SEND_PORT  # Now using the SEND_PORT from settings
 
-async def send_message(message: str, peer_ip: str, peer_port: int = UDP_PORT):
+async def send_message(message: str, peer_ip: str, peer_port: int = SEND_PORT):
     """Send a message to a peer."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(message.encode(), (peer_ip, peer_port))
@@ -13,7 +12,7 @@ async def send_message(message: str, peer_ip: str, peer_port: int = UDP_PORT):
 
 async def send_ping(peer_ip: str):
     """Send a PING message to let others know this peer is online."""
-    message = "TYPE: PING\nUSER_ID: alice@192.168.1.10\n\n"
+    message = "TYPE: PING\\nUSER_ID: alice@192.168.1.10\\n\\n"
     await send_message(message, peer_ip)
 
 async def start_sending():
