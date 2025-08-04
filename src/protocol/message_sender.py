@@ -1,5 +1,39 @@
 import uuid
 import time
+from network.utils import send_message
+
+async def send_ttt_invite(peer_ip, game_id, from_user, to_user, symbol, verbose=True):
+    message_id = str(uuid.uuid4())
+    timestamp = int(time.time())
+    token = f"{from_user}|{timestamp}|game"
+    if verbose:
+        message = (
+            f"TYPE: TICTACTOE_INVITE\nFROM: {from_user}\nTO: {to_user}\nGAMEID: {game_id}\nMESSAGE_ID: {message_id}\nSYMBOL: {symbol}\nTIMESTAMP: {timestamp}\nTOKEN: {token}\n"
+        )
+    else:
+        message = f"TICTACTOE_INVITE|{from_user}|{to_user}|{game_id}|{message_id}|{symbol}|{timestamp}|{token}\n"
+    await send_message(message, peer_ip, 51000)
+
+async def send_ttt_move(peer_ip, game_id, from_user, to_user, message_id, position, symbol, turn, verbose=True):
+    token = f"{from_user}|{int(time.time())}|game"
+    if verbose:
+        message = (
+            f"TYPE: TICTACTOE_MOVE\nFROM: {from_user}\nTO: {to_user}\nGAMEID: {game_id}\nMESSAGE_ID: {message_id}\nPOSITION: {position}\nSYMBOL: {symbol}\nTURN: {turn}\nTOKEN: {token}\n"
+        )
+    else:
+        message = f"TICTACTOE_MOVE|{from_user}|{to_user}|{game_id}|{message_id}|{position}|{symbol}|{turn}|{token}\n"
+    await send_message(message, peer_ip, 51000)
+
+async def send_ttt_result(peer_ip, game_id, from_user, to_user, message_id, result, symbol, winning_line, timestamp, verbose=True):
+    if verbose:
+        message = (
+            f"TYPE: TICTACTOE_RESULT\nFROM: {from_user}\nTO: {to_user}\nGAMEID: {game_id}\nMESSAGE_ID: {message_id}\nRESULT: {result}\nSYMBOL: {symbol}\nWINNING_LINE: {winning_line}\nTIMESTAMP: {timestamp}\n"
+        )
+    else:
+        message = f"TICTACTOE_RESULT|{from_user}|{to_user}|{game_id}|{message_id}|{result}|{symbol}|{winning_line}|{timestamp}\n"
+    await send_message(message, peer_ip, 51000)
+import uuid
+import time
 from custom_logging.logger import log_message
 from network.utils import send_message  # Import send_message from utils.py
 

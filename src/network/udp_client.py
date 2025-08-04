@@ -15,9 +15,6 @@ async def send_ping_periodically(peer_ip: str, user_id: str, port: int):
 
 async def start_sending(message_type: str, peer_ip: str, **kwargs):
     """Send a message of the given type, and always start the ping loop."""
-    # Start ping loop in the background
-    ping_task = asyncio.create_task(send_ping_periodically(peer_ip, USER_ID, SEND_PORT))
-
     # Send the requested message type
     from config.settings import VERBOSE_MODE
     if message_type == "post":
@@ -32,9 +29,15 @@ async def start_sending(message_type: str, peer_ip: str, **kwargs):
         await send_profile(peer_ip, USER_ID, kwargs.get("display_name", "andre"), kwargs.get("status", "Online"), SEND_PORT, verbose=VERBOSE_MODE)
     elif message_type == "ack":
         await send_ack(peer_ip, kwargs.get("message_id", "f83d2b1c"), verbose=VERBOSE_MODE)
+    elif message_type == "ttt_invite":
+        from protocol.message_sender import send_ttt_invite
+        await send_ttt_invite(peer_ip, kwargs["game_id"], kwargs["from_user"], kwargs["to_user"], kwargs["symbol"], verbose=VERBOSE_MODE)
+    elif message_type == "ttt_move":
+        from protocol.message_sender import send_ttt_move
+        await send_ttt_move(peer_ip, kwargs["game_id"], kwargs["from_user"], kwargs["to_user"], kwargs["message_id"], kwargs["position"], kwargs["symbol"], kwargs["turn"], verbose=VERBOSE_MODE)
+    elif message_type == "ttt_result":
+        from protocol.message_sender import send_ttt_result
+        await send_ttt_result(peer_ip, kwargs["game_id"], kwargs["from_user"], kwargs["to_user"], kwargs["message_id"], kwargs["result"], kwargs["symbol"], kwargs["winning_line"], kwargs["timestamp"], verbose=VERBOSE_MODE)
     else:
         print(f"Unknown message type: {message_type}")
         return
-
-    # Keep the ping loop alive
-    await ping_task
