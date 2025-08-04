@@ -1,25 +1,13 @@
-# logging/logger.py
-import logging
+import datetime
 
-# Global logger setup
-logger = None
+VERBOSE = False
 
-def setup_logging(verbose):
-    global logger
-    log_level = logging.DEBUG if verbose else logging.INFO  # Set log level based on verbose mode
-    logger = logging.getLogger('LSNP')
-    logger.setLevel(log_level)
+def set_verbose(value: bool):
+    global VERBOSE
+    VERBOSE = value
 
-    console_handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(message)s')
-    console_handler.setFormatter(formatter)
-
-    logger.addHandler(console_handler)
-
-def log_message(message):
-    if logger:
-        # Use info level for non-verbose and debug for verbose
-        if logger.level == logging.DEBUG:
-            logger.debug(message)  # Log at DEBUG level for verbose mode
-        else:
-            logger.info(message) 
+def log(message: str, verbose_only=False):
+    """Logs message depending on verbosity setting."""
+    if not verbose_only or VERBOSE:
+        now = datetime.datetime.now().strftime("%H:%M:%S")
+        print(f"[{now}] {message}")

@@ -1,43 +1,73 @@
-import asyncio
-from custom_logging.logger import log_message
-from network.utils import send_message  # Import send_message from utils.py
-from protocol.message_sender import send_post, send_dm, send_follow, send_unfollow, send_like, send_profile, send_ack, send_ping
-
-USER_ID = "andre@192.168.1.10"  # Set your user ID here
-SEND_PORT = 51000  # Default port for sending
-
-async def send_ping_periodically(peer_ip: str, user_id: str, port: int):
-    """Send PING messages every 5 seconds for presence signaling."""
-    while True:
-        await send_ping(peer_ip, user_id, port)
-        await asyncio.sleep(5)
+# udp_client.py
+import socket
+import sys
+from protocol.message_parser import craft_message, parse_message
 
 
-async def start_sending(message_type: str, peer_ip: str, **kwargs):
-    """Send a message of the given type, and always start the ping loop."""
-    # Send the requested message type
-    from config.settings import VERBOSE_MODE
-    if message_type == "post":
-        await send_post(peer_ip, kwargs.get("content", "Whatsup!"), verbose=VERBOSE_MODE)
-    elif message_type == "dm":
-        await send_dm(peer_ip, kwargs.get("to_user", "andre@192.168.1.12"), kwargs.get("content", "Hello gwen!"), verbose=VERBOSE_MODE)
-    elif message_type == "follow":
-        await send_follow(peer_ip, kwargs.get("to_user", "andre@192.168.1.10"), verbose=VERBOSE_MODE)
-    elif message_type == "unfollow":
-        await send_unfollow(peer_ip, kwargs.get("to_user", "andre@192.168.1.10"), verbose=VERBOSE_MODE)
-    elif message_type == "profile":
-        await send_profile(peer_ip, USER_ID, kwargs.get("display_name", "andre"), kwargs.get("status", "Online"), SEND_PORT, verbose=VERBOSE_MODE)
-    elif message_type == "ack":
-        await send_ack(peer_ip, kwargs.get("message_id", "f83d2b1c"), verbose=VERBOSE_MODE)
-    elif message_type == "ttt_invite":
-        from protocol.message_sender import send_ttt_invite
-        await send_ttt_invite(peer_ip, kwargs["game_id"], kwargs["from_user"], kwargs["to_user"], kwargs["symbol"], verbose=VERBOSE_MODE)
-    elif message_type == "ttt_move":
-        from protocol.message_sender import send_ttt_move
-        await send_ttt_move(peer_ip, kwargs["game_id"], kwargs["from_user"], kwargs["to_user"], kwargs["message_id"], kwargs["position"], kwargs["symbol"], kwargs["turn"], verbose=VERBOSE_MODE)
-    elif message_type == "ttt_result":
-        from protocol.message_sender import send_ttt_result
-        await send_ttt_result(peer_ip, kwargs["game_id"], kwargs["from_user"], kwargs["to_user"], kwargs["message_id"], kwargs["result"], kwargs["symbol"], kwargs["winning_line"], kwargs["timestamp"], verbose=VERBOSE_MODE)
-    else:
-        print(f"Unknown message type: {message_type}")
-        return
+class UDPClient:
+    def __init__(self, username_at_ip, target_ip, target_port, source_port, verbose=False):
+        try:
+            self.username, self.source_ip = username_at_ip.split("@")
+        except ValueError:
+            print("Error: username@ip format required.")
+            sys.exit(1)
+
+        self.target_ip = target_ip
+        self.target_port = int(target_port)
+        self.source_port = int(source_port)
+        self.verbose = verbose
+
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind((self.source_ip, self.source_port))
+
+        if self.verbose:
+            print(f"[CLIENT] {self.username} bound to {self.source_ip}:{self.source_port}")
+            print(f"[CLIENT] Target: {self.target_ip}:{self.target_port}")
+
+    def send_message(self, msg_type, kv_pairs):
+        message = craft_message(msg_type, kv_pairs)
+        self.sock.sendto(message.encode(), (self.target_ip, self.target_port))
+
+        if self.verbose:
+            print(f"[CLIENT] Sent:\n{message.strip()}")
+
+    def receive_message(self):
+        data, addr = self.sock.recvfrom(4096)
+        decoded = data.decode()
+        parsed = parse_message(decoded)
+
+        if self.verbose:
+            print(f"[CLIENT] Received raw from {addr}:\n{decoded.strip()}")
+            print(f"[CLIENT] Parsed: {parsed}")
+
+        return parsed
+
+    def run(self):
+        # Step 1: HELLO handshake
+        self.send_message("HELLO", {
+            "username": self.username,
+            "ip": self.source_ip,
+            "port": str(self.source_port)
+        })
+
+        ack = self.receive_message()
+        if ack and ack.get("TYPE") == "ACK":
+            print(f"[CLIENT] Server ACK: {ack}")
+        else:
+            print("[CLIENT] No valid ACK received. Exiting.")
+            return
+
+        # Step 2: Interactive mode
+        while True:
+            user_input = input("[CLIENT] Enter message (or 'quit'): ").strip()
+            if user_input.lower() == "quit":
+                break
+
+            self.send_message("MESSAGE", {
+                "from": self.username,
+                "content": user_input
+            })
+
+            reply = self.receive_message()
+            if reply:
+                print(f"[CLIENT] Server reply: {reply}")
