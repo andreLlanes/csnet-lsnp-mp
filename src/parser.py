@@ -10,8 +10,8 @@ def parse_message(raw: str) -> dict:
             data[key.strip()] = val.strip()
     return data
 
-def handle_message(data: dict, peers: dict, posts: list, dms: list):
-    """Handles LSNP message display and storage."""
+def handle_message(data: dict, peers: dict, posts: list, dms: list, followers: set, following: set):
+    """Handles LSNP message display, storage, and follow/unfollow tracking."""
     msg_type = data.get("TYPE", "")
 
     if msg_type == "PROFILE":
@@ -33,10 +33,14 @@ def handle_message(data: dict, peers: dict, posts: list, dms: list):
         pass  # Silent in non-verbose
 
     elif msg_type == "FOLLOW":
-        log(f"{data['FROM']} has followed you")
+        from_user = data.get("FROM", "")
+        followers.add(from_user)
+        log(f"{from_user} has followed you")
 
     elif msg_type == "UNFOLLOW":
-        log(f"{data['FROM']} has unfollowed you")
+        from_user = data.get("FROM", "")
+        followers.discard(from_user)
+        log(f"{from_user} has unfollowed you")
 
     else:
         log(f"Unknown message type: {msg_type}", verbose_only=True)
