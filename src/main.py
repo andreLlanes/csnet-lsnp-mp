@@ -1,13 +1,22 @@
+# main.py (updated with token commands)
 import socket
 import threading
 import argparse
+import base64
+import os
 from custom_logging.logger import set_verbose, log
 from parser import parse_message, handle_message
 from network.presence import start_presence_broadcast
 from protocol.message_parser import craft_message
-from protocol.storage import print_posts, print_dms
+from protocol.storage import (
+    print_posts, print_dms, likes, files, groups, group_messages,
+    store_token, tokens
+)
+from protocol.token import generate_token
 
-def listener(sock, peers, posts, dms, username, bind_ip, followers, following):
+CHUNK_SIZE = 1024  # bytes
+
+def listener(sock, peers, username, bind_ip, followers, following):
     while True:
         raw, addr = sock.recvfrom(65535)
         raw_str = raw.decode(errors="ignore")
@@ -17,7 +26,6 @@ def listener(sock, peers, posts, dms, username, bind_ip, followers, following):
         msg_type = data.get("TYPE", "").upper()
 
         if msg_type == "PING":
-            # Auto-respond with PROFILE
             profile_msg = craft_message(
                 msg_type="PROFILE",
                 kv_pairs={
@@ -29,7 +37,44 @@ def listener(sock, peers, posts, dms, username, bind_ip, followers, following):
             sock.sendto(profile_msg.encode("utf-8"), addr)
             log(f"SEND > {profile_msg.strip()}", verbose_only=True)
         else:
-            handle_message(data, peers, posts, dms, followers, following)
+            handle_message(data, peers, None, None, followers, following)
+
+def send_file(sock, target_ip, target_port, filepath):
+    filename = os.path.basename(filepath)
+    filesize = os.path.getsize(filepath)
+
+    offer_msg = craft_message(
+        msg_type="FILE_OFFER",
+        kv_pairs={
+            "FILENAME": filename,
+            "SIZE": str(filesize)
+        }
+    )
+    sock.sendto(offer_msg.encode(), (target_ip, target_port))
+    log(f"SEND > {offer_msg.strip()}", verbose_only=True)
+
+    with open(filepath, "rb") as f:
+        while True:
+            chunk = f.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            chunk_b64 = base64.b64encode(chunk).decode()
+            chunk_msg = craft_message(
+                msg_type="FILE_CHUNK",
+                kv_pairs={
+                    "FILENAME": filename,
+                    "CHUNK": chunk_b64
+                }
+            )
+            sock.sendto(chunk_msg.encode(), (target_ip, target_port))
+            log(f"SEND > FILE_CHUNK ({len(chunk)} bytes)", verbose_only=True)
+
+    received_msg = craft_message(
+        msg_type="FILE_RECEIVED",
+        kv_pairs={"FILENAME": filename}
+    )
+    sock.sendto(received_msg.encode(), (target_ip, target_port))
+    log(f"SEND > {received_msg.strip()}", verbose_only=True)
 
 def main():
     parser = argparse.ArgumentParser(description="LSNP Peer Client")
@@ -43,8 +88,6 @@ def main():
     set_verbose(args.verbose)
 
     peers = {}
-    posts = []
-    dms = []
     followers = set()
     following = set()
 
@@ -52,7 +95,6 @@ def main():
     sock.bind((args.ip, args.listen_port))
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-    # Start broadcasting PING + PROFILE every 5 mins
     start_presence_broadcast(
         sock,
         f"{args.username}@{args.ip}",
@@ -65,7 +107,7 @@ def main():
 
     threading.Thread(
         target=listener,
-        args=(sock, peers, posts, dms, args.username, args.ip, followers, following),
+        args=(sock, peers, args.username, args.ip, followers, following),
         daemon=True
     ).start()
 
@@ -77,29 +119,41 @@ def main():
             if msg.lower() == "/quit":
                 break
 
+            # -------------------- TOKEN COMMANDS --------------------
+            elif msg.startswith("/gentoken "):
+                parts = msg.split()
+                scope = parts[1]
+                lifetime = int(parts[2]) if len(parts) > 2 else 3600
+                try:
+                    token = generate_token(scope, lifetime)
+                    store_token({"TOKEN": token, "SCOPE": scope, "EXP": lifetime})
+                    log(f"Generated token: {token}")
+                except ValueError as e:
+                    log(str(e))
+
+            elif msg.lower() == "/tokens":
+                if tokens:
+                    log("Stored tokens:")
+                    for t in tokens:
+                        log(str(t))
+                else:
+                    log("No tokens generated yet.")
+            # ---------------------------------------------------------
+
+            # Milestone 1 & 2 commands
             elif msg.startswith("/post "):
                 content = msg[len("/post "):]
-                if not followers:
-                    log("No followers to send this post to.")
-                else:
-                    for follower in followers:
-                        payload = craft_message(
-                            msg_type="POST",
-                            kv_pairs={
-                                "USER_ID": f"{args.username}@{args.ip}",
-                                "CONTENT": content
-                            }
-                        )
-                        if "@" in follower:
-                            user_part, address_part = follower.split("@", 1)
-                            if ":" in address_part:
-                                ip, port = address_part.split(":")
-                                port = int(port)
-                            else:
-                                ip = address_part
-                                port = args.send_port
-                            sock.sendto(payload.encode(), (ip, port))
-                            log(f"SEND > {payload.strip()}", verbose_only=True)
+                for follower in followers:
+                    payload = craft_message(
+                        msg_type="POST",
+                        kv_pairs={
+                            "USER_ID": f"{args.username}@{args.ip}",
+                            "CONTENT": content
+                        }
+                    )
+                    ip, port = follower.split("@")[1], args.send_port
+                    sock.sendto(payload.encode(), (ip, port))
+                    log(f"SEND > {payload.strip()}", verbose_only=True)
 
             elif msg.startswith("/profile "):
                 status = msg[len("/profile "):]
@@ -156,16 +210,10 @@ def main():
                 log(f"SEND > {payload.strip()}", verbose_only=True)
 
             elif msg.lower() == "/followers":
-                if followers:
-                    log("Followers:\n" + "\n".join(followers))
-                else:
-                    log("No followers yet.")
+                log("Followers:\n" + "\n".join(followers) if followers else "No followers yet.")
 
             elif msg.lower() == "/following":
-                if following:
-                    log("Following:\n" + "\n".join(following))
-                else:
-                    log("Not following anyone.")
+                log("Following:\n" + "\n".join(following) if following else "Not following anyone.")
 
             elif msg.lower() == "/posts":
                 print_posts()
@@ -173,8 +221,72 @@ def main():
             elif msg.lower() == "/dms":
                 print_dms()
 
+            # Milestone 3 commands
+            elif msg.startswith("/avatar "):
+                path = msg[len("/avatar "):]
+                if os.path.exists(path):
+                    with open(path, "rb") as f:
+                        avatar_b64 = base64.b64encode(f.read()).decode()
+                    payload = craft_message(
+                        msg_type="AVATAR",
+                        kv_pairs={
+                            "USER_ID": f"{args.username}@{args.ip}",
+                            "AVATAR": avatar_b64
+                        }
+                    )
+                    sock.sendto(payload.encode(), (args.ip, args.send_port))
+                    log(f"SEND > AVATAR", verbose_only=True)
+                else:
+                    log("Avatar file not found.")
+
+            elif msg.startswith("/like "):
+                post_id = msg[len("/like "):]
+                payload = craft_message(
+                    msg_type="LIKE",
+                    kv_pairs={
+                        "USER_ID": f"{args.username}@{args.ip}",
+                        "POST_ID": post_id
+                    }
+                )
+                sock.sendto(payload.encode(), (args.ip, args.send_port))
+                log(f"SEND > LIKE", verbose_only=True)
+
+            elif msg.startswith("/sendfile "):
+                parts = msg.split(" ", 2)
+                if len(parts) >= 3:
+                    target, filepath = parts[1], parts[2]
+                    ip, port = target.split(":")
+                    send_file(sock, ip, int(port), filepath)
+
+            elif msg.lower() == "/files":
+                if files:
+                    log("Files received:\n" + "\n".join(files.keys()))
+                else:
+                    log("No files received.")
+
+            elif msg.lower() == "/likes":
+                if likes:
+                    for like in likes:
+                        print(like)
+                else:
+                    log("No likes received.")
+
+            elif msg.lower() == "/groups":
+                if groups:
+                    for gid, members in groups.items():
+                        print(f"{gid}: {', '.join(members)}")
+                else:
+                    log("No groups joined.")
+
+            elif msg.lower() == "/groupmsgs":
+                if group_messages:
+                    for gm in group_messages:
+                        print(gm)
+                else:
+                    log("No group messages received.")
+
             else:
-                log("Unknown command. Use /post, /profile, /dm, /follow, /unfollow, /followers, /following, /posts, /dms")
+                log("Unknown command.")
 
     except KeyboardInterrupt:
         log("Shutting down...")

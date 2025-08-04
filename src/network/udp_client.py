@@ -71,3 +71,17 @@ class UDPClient:
             reply = self.receive_message()
             if reply:
                 print(f"[CLIENT] Server reply: {reply}")
+
+
+if __name__ == "__main__":
+    # Example usage: python udp_client.py alice@127.0.0.1 127.0.0.1 5000 5001
+    if len(sys.argv) < 5:
+        print("Usage: python udp_client.py <username@ip> <target_ip> <target_port> <source_port> [--verbose]")
+        sys.exit(1)
+
+    verbose_flag = "--verbose" in sys.argv
+    if verbose_flag:
+        sys.argv.remove("--verbose")
+
+    client = UDPClient(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], verbose=verbose_flag)
+    client.run()

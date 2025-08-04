@@ -32,31 +32,22 @@ class UDPServer:
                 print(f"[SERVER] Received raw from {addr}:\n{decoded.strip()}")
                 print(f"[SERVER] Parsed: {parsed}")
 
-            if not parsed or "TYPE" not in parsed:
-                continue
-
-            msg_type = parsed["TYPE"]
-
-            if msg_type == "HELLO":
-                username = parsed.get("USERNAME", "Unknown")
-                ip = parsed.get("IP", addr[0])
-                port = parsed.get("PORT", str(addr[1]))
-
+            # Step 1: HELLO handshake
+            if parsed.get("TYPE") == "HELLO":
                 self.send_message(addr, "ACK", {
-                    "server": "LSNP-Test",
-                    "status": "Connected",
-                    "your_username": username
+                    "message": "Handshake successful"
+                })
+            # Step 2: Echo back messages
+            elif parsed.get("TYPE") == "MESSAGE":
+                self.send_message(addr, "REPLY", {
+                    "content": f"Server got: {parsed.get('content', '')}"
+                })
+            else:
+                self.send_message(addr, "ERROR", {
+                    "error": "Unknown message type"
                 })
 
-            elif msg_type == "MESSAGE":
-                content = parsed.get("CONTENT", "")
-                from_user = parsed.get("FROM", "Unknown")
 
-                if self.verbose:
-                    print(f"[SERVER] MESSAGE from {from_user}: {content}")
-
-                # Echo back with LSNP format
-                self.send_message(addr, "RESPONSE", {
-                    "from": "server",
-                    "content": f"Echo: {content}"
-                })
+if __name__ == "__main__":
+    server = UDPServer("127.0.0.1", 5000, verbose=True)
+    server.run()
