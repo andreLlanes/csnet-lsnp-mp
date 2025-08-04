@@ -5,6 +5,7 @@ from custom_logging.logger import set_verbose, log
 from parser import parse_message, handle_message
 from network.presence import start_presence_broadcast
 from protocol.message_parser import craft_message
+from protocol.storage import print_posts, print_dms
 
 def listener(sock, peers, posts, dms, username, bind_ip, followers, following):
     while True:
@@ -44,8 +45,8 @@ def main():
     peers = {}
     posts = []
     dms = []
-    followers = set()   # People following me
-    following = set()   # People I follow
+    followers = set()
+    following = set()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((args.ip, args.listen_port))
@@ -72,7 +73,7 @@ def main():
 
     try:
         while True:
-            msg = input("> ")
+            msg = input("> ").strip()
             if msg.lower() == "/quit":
                 break
 
@@ -166,8 +167,14 @@ def main():
                 else:
                     log("Not following anyone.")
 
+            elif msg.lower() == "/posts":
+                print_posts()
+
+            elif msg.lower() == "/dms":
+                print_dms()
+
             else:
-                log("Unknown command. Use /post, /profile, /dm, /follow, /unfollow, /followers, /following")
+                log("Unknown command. Use /post, /profile, /dm, /follow, /unfollow, /followers, /following, /posts, /dms")
 
     except KeyboardInterrupt:
         log("Shutting down...")

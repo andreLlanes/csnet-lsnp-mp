@@ -1,49 +1,6 @@
-ttt_invites: list = []
-ttt_accepts: list = []
-ttt_results: dict = {}  # game_id -> winner
-
-def store_ttt_invite(invite):
-    ttt_invites.append(invite)
-
-def store_ttt_accept(accept):
-    ttt_accepts.append(accept)
-
-def store_ttt_result(game_id, winner):
-    ttt_results[game_id] = winner
-
-def print_ttt_invites():
-    for invite in ttt_invites:
-        print(invite)
-
-def print_ttt_accepts():
-    for accept in ttt_accepts:
-        print(accept)
-
-def print_ttt_result(game_id):
-    if game_id in ttt_results:
-        print(f"Game {game_id} winner: {ttt_results[game_id]}")
-    else:
-        print(f"Game {game_id} has no result yet.")
-from typing import Dict
-from protocol.profile import TicTacToe
-games: Dict[str, TicTacToe] = {}
-
-def store_ttt_move(game_id, player, pos):
-    if game_id not in games:
-        games[game_id] = TicTacToe()
-    game = games[game_id]
-    # Set current player for move
-    game.current_player = player
-    game.make_move(int(pos))
-
-def print_ttt_board(game_id):
-    if game_id in games:
-        print(f"Game {game_id} board:")
-        games[game_id].print_board()
-    else:
-        print(f"Game {game_id} not found.")
 # src/protocol/storage.py
 from typing import Dict, List, Set
+from datetime import datetime
 
 posts: List[Dict] = []
 dms: List[Dict] = []
@@ -53,10 +10,15 @@ groups: Dict[str, Set[str]] = {}    # group_id -> set of members
 group_messages: List[Dict] = []
 valid_messages: List[Dict] = []
 
+def _timestamp():
+    return datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")  # Local time AM/PM
+
 def store_post(post):
+    post["timestamp"] = _timestamp()
     posts.append(post)
 
 def store_dm(dm):
+    dm["timestamp"] = _timestamp()
     dms.append(dm)
 
 def store_like(like):
@@ -82,27 +44,21 @@ def store_valid_message(msg):
     valid_messages.append(msg)
 
 def print_posts():
+    if not posts:
+        print("No posts yet.")
+        return
     for post in posts:
-        print(post)
+        user = post.get("USER_ID", "Unknown")
+        content = post.get("CONTENT", "")
+        ts = post.get("timestamp", "")
+        print(f"[{ts}] {user}: {content}")
 
 def print_dms():
+    if not dms:
+        print("No DMs yet.")
+        return
     for dm in dms:
-        print(dm)
-
-def print_likes():
-    for like in likes:
-        print(like)
-
-def print_groups():
-    for gid, members in groups.items():
-        print(f"Group {gid}: Members: {', '.join(members)}")
-
-def print_group_members(group_id):
-    if group_id in groups:
-        print(f"Members of {group_id}: {', '.join(groups[group_id])}")
-    else:
-        print(f"Group {group_id} not found.")
-
-def print_group_messages():
-    for msg in group_messages:
-        print(msg)
+        sender = dm.get("FROM", "Unknown")
+        content = dm.get("CONTENT", "")
+        ts = dm.get("timestamp", "")
+        print(f"[{ts}] [DM] {sender}: {content}")

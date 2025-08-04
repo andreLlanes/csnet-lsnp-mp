@@ -1,4 +1,6 @@
 from custom_logging.logger import log
+from protocol import storage
+from datetime import datetime
 
 def parse_message(raw: str) -> dict:
     """Parses raw LSNP key-value message into a dict."""
@@ -19,18 +21,16 @@ def handle_message(data: dict, peers: dict, posts: list, dms: list, followers: s
         log(f"{peers[data['USER_ID']]}: {data.get('STATUS','')}")
 
     elif msg_type == "POST":
+        timestamp = datetime.now().strftime("[%Y-%m-%d %I:%M:%S %p]")
         posts.append(data)
-        log(f"{peers.get(data['USER_ID'], data['USER_ID'])}: {data.get('CONTENT','')}")
+        storage.store_post({"timestamp": timestamp, **data})
+        log(f"{timestamp} {peers.get(data['USER_ID'], data['USER_ID'])}: {data.get('CONTENT','')}")
 
     elif msg_type == "DM":
+        timestamp = datetime.now().strftime("[%Y-%m-%d %I:%M:%S %p]")
         dms.append(data)
-        log(f"[DM] {peers.get(data['FROM'], data['FROM'])}: {data.get('CONTENT','')}")
-
-    elif msg_type == "PING":
-        pass  # Silent in non-verbose
-
-    elif msg_type == "ACK":
-        pass  # Silent in non-verbose
+        storage.store_dm({"timestamp": timestamp, **data})
+        log(f"{timestamp} [DM] {peers.get(data['FROM'], data['FROM'])}: {data.get('CONTENT','')}")
 
     elif msg_type == "FOLLOW":
         from_user = data.get("FROM", "")
@@ -41,6 +41,12 @@ def handle_message(data: dict, peers: dict, posts: list, dms: list, followers: s
         from_user = data.get("FROM", "")
         followers.discard(from_user)
         log(f"{from_user} has unfollowed you")
+
+    elif msg_type == "TEST_DONE":
+        log("✅ Milestone 2 test complete!")
+
+    elif msg_type in ("PING", "ACK"):
+        pass  # Silent in non-verbose
 
     else:
         log(f"Unknown message type: {msg_type}", verbose_only=True)
