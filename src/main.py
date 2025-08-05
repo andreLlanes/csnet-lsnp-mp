@@ -1,4 +1,3 @@
-# main.py (updated with token commands)
 import socket
 import threading
 import argparse
@@ -9,10 +8,8 @@ from parser import parse_message, handle_message
 from network.presence import start_presence_broadcast
 from protocol.message_parser import craft_message
 from protocol.storage import (
-    print_posts, print_dms, likes, files, groups, group_messages,
-    store_token, tokens
+    print_posts, print_dms, likes, files, groups, group_messages
 )
-from protocol.token import generate_token
 
 CHUNK_SIZE = 1024  # bytes
 
@@ -45,10 +42,7 @@ def send_file(sock, target_ip, target_port, filepath):
 
     offer_msg = craft_message(
         msg_type="FILE_OFFER",
-        kv_pairs={
-            "FILENAME": filename,
-            "SIZE": str(filesize)
-        }
+        kv_pairs={"FILENAME": filename, "SIZE": str(filesize)}
     )
     sock.sendto(offer_msg.encode(), (target_ip, target_port))
     log(f"SEND > {offer_msg.strip()}", verbose_only=True)
@@ -61,10 +55,7 @@ def send_file(sock, target_ip, target_port, filepath):
             chunk_b64 = base64.b64encode(chunk).decode()
             chunk_msg = craft_message(
                 msg_type="FILE_CHUNK",
-                kv_pairs={
-                    "FILENAME": filename,
-                    "CHUNK": chunk_b64
-                }
+                kv_pairs={"FILENAME": filename, "CHUNK": chunk_b64}
             )
             sock.sendto(chunk_msg.encode(), (target_ip, target_port))
             log(f"SEND > FILE_CHUNK ({len(chunk)} bytes)", verbose_only=True)
@@ -119,28 +110,6 @@ def main():
             if msg.lower() == "/quit":
                 break
 
-            # -------------------- TOKEN COMMANDS --------------------
-            elif msg.startswith("/gentoken "):
-                parts = msg.split()
-                scope = parts[1]
-                lifetime = int(parts[2]) if len(parts) > 2 else 3600
-                try:
-                    token = generate_token(scope, lifetime)
-                    store_token({"TOKEN": token, "SCOPE": scope, "EXP": lifetime})
-                    log(f"Generated token: {token}")
-                except ValueError as e:
-                    log(str(e))
-
-            elif msg.lower() == "/tokens":
-                if tokens:
-                    log("Stored tokens:")
-                    for t in tokens:
-                        log(str(t))
-                else:
-                    log("No tokens generated yet.")
-            # ---------------------------------------------------------
-
-            # Milestone 1 & 2 commands
             elif msg.startswith("/post "):
                 content = msg[len("/post "):]
                 for follower in followers:
@@ -172,6 +141,7 @@ def main():
                 parts = msg.split(" ", 2)
                 if len(parts) >= 3:
                     to_user, content = parts[1], parts[2]
+                    target_ip = to_user.split("@")[1]
                     payload = craft_message(
                         msg_type="DM",
                         kv_pairs={
@@ -180,12 +150,13 @@ def main():
                             "CONTENT": content
                         }
                     )
-                    sock.sendto(payload.encode(), (args.ip, args.send_port))
+                    sock.sendto(payload.encode(), (target_ip, args.send_port))
                     log(f"SEND > {payload.strip()}", verbose_only=True)
 
             elif msg.startswith("/follow "):
                 target_user = msg[len("/follow "):].strip()
                 following.add(target_user)
+                target_ip = target_user.split("@")[1]
                 payload = craft_message(
                     msg_type="FOLLOW",
                     kv_pairs={
@@ -193,12 +164,13 @@ def main():
                         "TO": target_user
                     }
                 )
-                sock.sendto(payload.encode(), (args.ip, args.send_port))
+                sock.sendto(payload.encode(), (target_ip, args.send_port))
                 log(f"SEND > {payload.strip()}", verbose_only=True)
 
             elif msg.startswith("/unfollow "):
                 target_user = msg[len("/unfollow "):].strip()
                 following.discard(target_user)
+                target_ip = target_user.split("@")[1]
                 payload = craft_message(
                     msg_type="UNFOLLOW",
                     kv_pairs={
@@ -206,7 +178,7 @@ def main():
                         "TO": target_user
                     }
                 )
-                sock.sendto(payload.encode(), (args.ip, args.send_port))
+                sock.sendto(payload.encode(), (target_ip, args.send_port))
                 log(f"SEND > {payload.strip()}", verbose_only=True)
 
             elif msg.lower() == "/followers":
@@ -221,7 +193,6 @@ def main():
             elif msg.lower() == "/dms":
                 print_dms()
 
-            # Milestone 3 commands
             elif msg.startswith("/avatar "):
                 path = msg[len("/avatar "):]
                 if os.path.exists(path):
