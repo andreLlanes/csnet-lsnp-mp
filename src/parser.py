@@ -1,11 +1,10 @@
 import base64
 from custom_logging.logger import log
-from protocol.token import validate_token, ALLOWED_SCOPES
 from protocol.storage import (
     store_post, store_dm, store_like, store_avatar,
     store_file_chunk, reconstruct_file, store_group,
     add_group_member, remove_group_member, store_group_message,
-    store_token, store_valid_message, create_game, store_game_move
+    store_valid_message, create_game, store_game_move
 )
 
 def parse_message(raw_str):
@@ -19,17 +18,6 @@ def parse_message(raw_str):
 
 def handle_message(data, peers, posts, dms, followers, following):
     msg_type = data.get("TYPE", "").upper()
-
-    # Token validation for messages in ALLOWED_SCOPES
-    if msg_type in ALLOWED_SCOPES:
-        token = data.get("TOKEN", "")
-        if not validate_token(token, msg_type):
-            log(f"[TOKEN VALIDATION] {msg_type} rejected – invalid/expired token: {token}", verbose_only=True)
-            log(f"Rejected {msg_type} due to invalid/expired token.")
-            return
-        else:
-            log(f"[TOKEN VALIDATION] {msg_type} accepted – valid token: {token}", verbose_only=True)
-            store_valid_message(data)
 
     # ---- MILESTONE 1 & 2 ----
     if msg_type == "PROFILE":
@@ -73,7 +61,7 @@ def handle_message(data, peers, posts, dms, followers, following):
 
     elif msg_type == "FILE_OFFER":
         from_user = data.get("FROM") or data.get("USER_ID") or "Unknown"
-        if from_user == "Unknown" and peers:  # fallback to our own peer ID if available
+        if from_user == "Unknown" and peers:
             from_user = next(iter(peers.keys()))
         log(f"File offer from {from_user}: {data.get('FILENAME')} ({data.get('SIZE')} bytes)")
 
