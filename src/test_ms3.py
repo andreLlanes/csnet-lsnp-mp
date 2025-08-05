@@ -2,11 +2,18 @@
 import socket
 import time
 import base64
+import sys
 from protocol.token import generate_token
 
-TARGET_IP = "127.0.0.1"
-TARGET_PORT = 5000  # Alice's listening port
-MY_USER = "bob@127.0.0.1"
+# --- CLI ARGUMENTS ---
+# Usage: python test_ms3.py <TARGET_IP> <TARGET_PORT> <MY_USER>
+if len(sys.argv) != 4:
+    print(f"Usage: python {sys.argv[0]} <TARGET_IP> <TARGET_PORT> <MY_USER>")
+    sys.exit(1)
+
+TARGET_IP = sys.argv[1]
+TARGET_PORT = int(sys.argv[2])
+MY_USER = sys.argv[3]
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -55,7 +62,7 @@ def main():
     send_message(make_msg(
         "DM",
         FROM=MY_USER,
-        TO="alice@127.0.0.1",
+        TO="alice@" + TARGET_IP,
         CONTENT="Private message to Alice",
         TOKEN=t_dm
     ))
@@ -64,7 +71,7 @@ def main():
     send_message(make_msg(
         "FOLLOW",
         FROM=MY_USER,
-        TO="alice@127.0.0.1",
+        TO="alice@" + TARGET_IP,
         TOKEN=t_follow
     ))
 
@@ -72,7 +79,7 @@ def main():
     send_message(make_msg(
         "UNFOLLOW",
         FROM=MY_USER,
-        TO="alice@127.0.0.1",
+        TO="alice@" + TARGET_IP,
         TOKEN=t_follow
     ))
 
@@ -119,7 +126,7 @@ def main():
     send_message(make_msg(
         "GROUP_CREATE",
         GROUP_ID="g1",
-        MEMBERS="bob@127.0.0.1,alice@127.0.0.1",
+        MEMBERS=f"{MY_USER},alice@{TARGET_IP}",
         TOKEN=t_group
     ))
 
@@ -127,7 +134,7 @@ def main():
     send_message(make_msg(
         "GROUP_UPDATE",
         GROUP_ID="g1",
-        MEMBERS="bob@127.0.0.1,alice@127.0.0.1,charlie@127.0.0.1",
+        MEMBERS=f"{MY_USER},alice@{TARGET_IP},charlie@{TARGET_IP}",
         TOKEN=t_group
     ))
 
@@ -145,7 +152,7 @@ def main():
         "GAME_CREATE",
         GAME_ID="ttt1",
         PLAYER_X=MY_USER,
-        PLAYER_O="alice@127.0.0.1",
+        PLAYER_O=f"alice@{TARGET_IP}",
         TOKEN=t_game
     ))
 
