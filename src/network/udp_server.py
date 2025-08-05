@@ -49,5 +49,5 @@ class UDPServer:
 
 
 if __name__ == "__main__":
-    server = UDPServer("127.0.0.1", 5000, verbose=True)
+    server = UDPServer("0.0.0.0", 5000, verbose=True)
     server.run()
